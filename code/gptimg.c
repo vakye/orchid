@@ -16,7 +16,7 @@
 settings Settings =
 {
     .BytesPerBlock       = 512,    // NOTE(vak): Not sure if values other than 512 even works :)
-    .SystemPartitionSize = MB(33), // NOTE(vak): FAT32 so must be larger than 32MB
+    .SystemPartitionSize = MB(64), // NOTE(vak): FAT32 so must be larger than 32MB
     .Alignment           = MB(1),  // NOTE(vak): UEFI GPT partitions are aligned to a 2048-block boundary.
     .ImageName           = "orchid.img",
 };
