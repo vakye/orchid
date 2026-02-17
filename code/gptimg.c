@@ -4,194 +4,27 @@
 // placed in the "/EFI/BOOT" directory. The resulting image is then
 // outputted to "orchid.img".
 
+#include "shared.h"
+#include "shared.c"
+
+#include "gptimg.h"
+
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
-#include <string.h>
 #include <time.h>
-
-#define CTAssert(Expression) _Static_assert(Expression, "Compile-time assertion failed")
-
-#define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
-
-#define Minimum(A, B) ((A) < (B) ? (A) : (B))
-#define Maximum(A, B) ((A) > (B) ? (A) : (B))
-
-#define packed __attribute__((packed))
-#define nonstring __attribute__((nonstring))
-
-#define KB(Amount) ((intptr_t)(Amount) << 10)
-#define MB(Amount) ((intptr_t)(Amount) << 20)
-#define GB(Amount) ((intptr_t)(Amount) << 30)
-#define TB(Amount) ((intptr_t)(Amount) << 40)
-
-#define Align(Value, PowerOf2) (((Value) + (PowerOf2) - 1) & ~((PowerOf2) - 1))
-
-typedef struct packed
-{
-    uint8_t  BootIndicator;
-    uint8_t  StartHead;
-    uint8_t  StartSector;
-    uint8_t  StartTrack;
-    uint8_t  OSIndicator;
-    uint8_t  EndHead;
-    uint8_t  EndSector;
-    uint8_t  EndTrack;
-    uint32_t StartingLBA;
-    uint32_t SizeInLBA;
-} mbr_partition_record;
-
-CTAssert(sizeof(mbr_partition_record) == 16);
-
-typedef struct packed
-{
-    uint8_t              BootCode[440];
-    uint32_t             UniqueMBRSignature;
-    uint16_t             Unknown;
-    mbr_partition_record Partitions[4];
-    uint16_t             Signature;
-} master_boot_record;
-
-CTAssert(sizeof(master_boot_record) == 512);
-
-typedef union
-{
-    uint64_t Parts64[2];
-    uint32_t Parts32[4];
-    uint16_t Parts16[8];
-    uint8_t  Parts8[16];
-} guid128;
-
-typedef struct packed
-{
-    uint64_t Signature;
-    uint32_t Revision;
-    uint32_t HeaderSize;
-    uint32_t HeaderCRC32;
-    uint32_t Reserved0;
-    uint64_t MyLBA;
-    uint64_t AlternateLBA;
-    uint64_t FirstUsableLBA;
-    uint64_t LastUsableLBA;
-    guid128  DiskGUID;
-    uint64_t PartitionEntryLBA;
-    uint32_t NumberOfPartitionEntries;
-    uint32_t SizeOfPartitionEntry;
-    uint32_t PartitionArrayCRC32;
-    uint8_t  Reserved1[420];
-} gpt_header;
-
-CTAssert(sizeof(gpt_header) == 512);
-
-typedef struct packed
-{
-    guid128  PartitionTypeGUID;
-    guid128  UniquePartitionGUID;
-    uint64_t StartingLBA;
-    uint64_t EndingLBA;
-    uint64_t Attributes;
-    uint16_t PartitionName[36];
-} gpt_entry;
-
-CTAssert(sizeof(gpt_entry) == 128);
-
-typedef struct packed
-{
-    uint8_t  JumpInstruction[3];
-    uint8_t  OEMName[8] nonstring;
-    uint16_t BytesPerBlock;
-    uint8_t  BlocksPerCluster;
-    uint16_t ReservedBlockCount;
-    uint8_t  NumberOfFATs;
-    uint16_t RootDirectoryEntries;
-    uint16_t TotalBlocks16;
-    uint8_t  MediaDescriptor;
-    uint16_t BlocksPerFAT16;
-    uint16_t BlocksPerTrack;
-    uint16_t HeadCount;
-    uint32_t HiddenBlocks;
-    uint32_t TotalBlocks32;
-    uint32_t BlocksPerFAT32;
-    uint16_t ExtendedFlags;
-    uint16_t FilesystemVersion;
-    uint32_t RootCluster;
-    uint16_t FilesystemInfo;
-    uint16_t BackupBootSector;
-    uint8_t  Reserved0[12];
-    uint8_t  DriveNumber;
-    uint8_t  Reserved1;
-    uint8_t  BootSignature;
-    uint8_t  VolumeID[4];
-    uint8_t  VolumeLabel[11] nonstring;
-    uint8_t  FilesystemType[8] nonstring;
-
-    uint8_t  BootCode[420];
-    uint16_t BootSectorSignature;
-} fat32_vbr;
-
-CTAssert(sizeof(fat32_vbr) == 512);
-
-typedef struct packed
-{
-    uint32_t LeadSignature;
-    uint8_t  Reserved0[480];
-    uint32_t StructureSignature;
-    uint32_t FreeCount;
-    uint32_t NextFree;
-    uint8_t  Reserved1[12];
-    uint32_t TrailingSignature;
-} fat32_filesystem_info;
-
-CTAssert(sizeof(fat32_filesystem_info) == 512);
-
-typedef uint8_t fat32_directory_attributes;
-
-#define ATTR_READ_ONLY (0x01)
-#define ATTR_HIDDEN    (0x02)
-#define ATTR_SYSTEM    (0x04)
-#define ATTR_VOLUME_ID (0x08)
-#define ATTR_DIRECTORY (0x10)
-#define ATTR_ARCHIVE   (0x20)
-#define ATTR_LONG_NAME (ATTR_READ_ONLY | ATTR_HIDDEN | ATTR_SYSTEM | ATTR_VOLUME_ID)
-
-typedef struct packed
-{
-    uint8_t  Name[11] nonstring;
-    uint8_t  Attributes;
-    uint8_t  NTRes;
-    uint8_t  CreateTimeLength;
-    uint16_t CreateTime;
-    uint16_t CreateDate;
-    uint16_t LastAccessDate;
-    uint16_t FirstClusterHigh;
-    uint16_t WriteTime;
-    uint16_t WriteDate;
-    uint16_t FirstClusterLow;
-    uint32_t FileSize;
-} fat32_directory_entry;
-
-CTAssert(sizeof(fat32_directory_entry) == 32);
-
-typedef struct
-{
-    size_t BytesPerBlock;       // NOTE(vak): Per UEFI specifications, restricted to be 512/1024/2048/4096
-    size_t SystemPartitionSize; // NOTE(vak): Contains boot code and data. Measured in bytes
-    size_t Alignment;           // NOTE(vak): Partition alignment. Must be MB(1) per UEFI spec
-    char*  ImageName;           // NOTE(vak): Name of the output file.
-} settings;
 
 settings Settings =
 {
-    .BytesPerBlock       = 512,
+    .BytesPerBlock       = 512,    // NOTE(vak): Not sure if values other than 512 even works :)
     .SystemPartitionSize = MB(33), // NOTE(vak): FAT32 so must be larger than 32MB
-    .Alignment           = MB(1),
+    .Alignment           = MB(1),  // NOTE(vak): UEFI GPT partitions are aligned to a 2048-block boundary.
     .ImageName           = "orchid.img",
 };
 
 #define EFI_SYSTEM_PARTITION_GUID \
     (guid128){.Parts64 = {0xC12A7328F81F11D2, 0xBA4B00A0C93EC93B}}
 
-static guid128 NewGUID(void)
+local guid128 NewGUID(void)
 {
     guid128 Result = {0};
 
@@ -200,7 +33,7 @@ static guid128 NewGUID(void)
 
     srand(time(0));
 
-    for (size_t Index = 0; Index < 16; Index++)
+    for (usize Index = 0; Index < 16; Index++)
     {
         Result.Parts8[Index] = rand() & 0xFF;
     }
@@ -208,78 +41,78 @@ static guid128 NewGUID(void)
     return (Result);
 }
 
-static size_t ComputeBlocksSize(size_t BlockCount)
+local usize ComputeBlocksSize(usize BlockCount)
 {
-    size_t Result = BlockCount * Settings.BytesPerBlock;
+    usize Result = BlockCount * Settings.BytesPerBlock;
     return (Result);
 }
 
-static size_t ComputeBlockCount(size_t SizeInBytes)
+local usize ComputeBlockCount(usize SizeInBytes)
 {
-    size_t Aligned = Align(SizeInBytes, Settings.BytesPerBlock);
-    size_t Result = Aligned / Settings.BytesPerBlock;
-
-    return (Result);
-}
-
-static size_t ComputeAlignedBlockCount(size_t SizeInBytes)
-{
-    size_t Aligned = Align(SizeInBytes, Settings.Alignment);
-    size_t Result = Aligned / Settings.BytesPerBlock;
+    usize Aligned = Align(SizeInBytes, Settings.BytesPerBlock);
+    usize Result = Aligned / Settings.BytesPerBlock;
 
     return (Result);
 }
 
-static void WritePadding(FILE* File, size_t Size)
+local usize ComputeAlignedBlockCount(usize SizeInBytes)
 {
-    uint8_t Zero = 0;
+    usize Aligned = Align(SizeInBytes, Settings.Alignment);
+    usize Result = Aligned / Settings.BytesPerBlock;
 
-    for (size_t Index = 0; Index < Size; Index++)
+    return (Result);
+}
+
+local void WritePadding(FILE* File, usize Size)
+{
+    u8 Zero = 0;
+
+    for (usize Index = 0; Index < Size; Index++)
         fwrite(&Zero, 1, sizeof(Zero), File);
 }
 
-static void SeekFile(FILE* File, intptr_t Offset)
+local void SeekFile(FILE* File, ssize Offset)
 {
     fseek(File, Offset, SEEK_SET);
 }
 
-static void SeekFileCurrent(FILE* File, intptr_t Offset)
+local void SeekFileCurrent(FILE* File, ssize Offset)
 {
     fseek(File, Offset, SEEK_CUR);
 }
 
-static size_t GetFileSize(FILE* File)
+local usize GetFileSize(FILE* File)
 {
-    size_t OldOffset = ftell(File);
+    usize OldOffset = ftell(File);
 
     fseek(File, 0, SEEK_END);
 
-    size_t Result = ftell(File);
+    usize Result = ftell(File);
 
     fseek(File, OldOffset, SEEK_SET);
 
     return (Result);
 }
 
-static size_t ReadBytes(FILE* File, void* Buffer, size_t Size)
+local usize ReadBytes(FILE* File, void* Buffer, usize Size)
 {
-    size_t Result = fread(Buffer, 1, Size, File);
+    usize Result = fread(Buffer, 1, Size, File);
     return (Result);
 }
 
-static size_t WriteBytes(FILE* File, void* Buffer, size_t Size)
+local usize WriteBytes(FILE* File, void* Buffer, usize Size)
 {
-    size_t Result = Size;
+    usize Result = Size;
 
     fwrite(Buffer, 1, Size, File);
 
     return (Result);
 }
 
-static size_t WriteBlocks(FILE* File, void* Buffer, size_t Size)
+local usize WriteBlocks(FILE* File, void* Buffer, usize Size)
 {
-    size_t Aligned = Align(Size, Settings.BytesPerBlock);
-    size_t Padding = Aligned - Size;
+    usize Aligned = Align(Size, Settings.BytesPerBlock);
+    usize Padding = Aligned - Size;
 
     WriteBytes(File, Buffer, Size);
     WritePadding(File, Padding);
@@ -287,9 +120,9 @@ static size_t WriteBlocks(FILE* File, void* Buffer, size_t Size)
     return (Aligned);
 }
 
-static uint32_t ComputeCRC32(void* DataInit, size_t Size)
+local u32 ComputeCRC32(void* DataInit, usize Size)
 {
-    static uint32_t Table[256] =
+    persist u32 Table[256] =
     {
         0x00000000, 0x77073096, 0xEE0E612C, 0x990951BA,
         0x076DC419, 0x706AF48F, 0xE963A535, 0x9E6495A3,
@@ -357,13 +190,13 @@ static uint32_t ComputeCRC32(void* DataInit, size_t Size)
         0xB40BBE37, 0xC30C8EA1, 0x5A05DF1B, 0x2D02EF8D,
     };
 
-    uint8_t* Bytes = (uint8_t*)DataInit;
-    uint32_t Result = 0xFFFFFFFF;
+    u8* Bytes = (u8*)DataInit;
+    u32 Result = 0xFFFFFFFF;
 
-    for (size_t Index = 0; Index < Size; Index++)
+    for (usize Index = 0; Index < Size; Index++)
     {
-        uint8_t Byte = Bytes[Index];
-        uint8_t TableIndex = (Result ^ Byte) & 0xFF;
+        u8 Byte = Bytes[Index];
+        u8 TableIndex = (Result ^ Byte) & 0xFF;
 
         Result = Table[TableIndex] ^ (Result >> 8);
     }
@@ -373,7 +206,7 @@ static uint32_t ComputeCRC32(void* DataInit, size_t Size)
     return (Result);
 }
 
-static void SetFAT32Time(fat32_directory_entry* Entry)
+local void SetFAT32Time(fat32_directory_entry* Entry)
 {
     time_t CurrentTime = time(0);
     struct tm Time = *localtime(&CurrentTime);
@@ -396,7 +229,7 @@ static void SetFAT32Time(fat32_directory_entry* Entry)
     Entry->WriteTime = Entry->CreateTime;
 }
 
-int main(int ArgCount, char* Args[])
+s32 main(s32 ArgCount, char* Args[])
 {
     (void) ArgCount;
     (void) Args;
@@ -417,12 +250,12 @@ int main(int ArgCount, char* Args[])
 
     if (Settings.SystemPartitionSize <= MB(32))
     {
-        printf("error: EFI system partition size is not larger than 32MB (%zu MB)\n", Settings.SystemPartitionSize / MB(1));
+        printf("error: EFI system partition size is not larger than 32MB (%llu MB)\n", Settings.SystemPartitionSize / MB(1));
     }
 
     printf("Settings:\n");
-    printf("    + Bytes per block:       %zu\n",    Settings.BytesPerBlock);
-    printf("    + System partition size: %zu MB\n", Settings.SystemPartitionSize / MB(1));
+    printf("    + Bytes per block:       %llu\n",    Settings.BytesPerBlock);
+    printf("    + System partition size: %llu MB\n", Settings.SystemPartitionSize / MB(1));
 
     // NOTE(vak): Add extra padding for:
     //     2 aligned partitions
@@ -430,28 +263,28 @@ int main(int ArgCount, char* Args[])
     //     2 GPT headers (primary and alternative)
     //     MBR
 
-    size_t GPTTableSize = KB(16); // NOTE(vak): Per UEFI spec, GPT entry array must be a minimum of KB(16)
-    size_t GPTTableBlockCount = ComputeBlockCount(GPTTableSize);
+    usize GPTTableSize = KB(16); // NOTE(vak): Per UEFI spec, GPT entry array must be a minimum of KB(16)
+    usize GPTTableBlockCount = ComputeBlockCount(GPTTableSize);
 
-    size_t Padding =
+    usize Padding =
         (Settings.Alignment * 2)     + // NOTE(vak): 2 aligned partitions
         (GPTTableSize * 2)           + // NOTE(vak): 2 GPT tables
         (Settings.BytesPerBlock * 2) + // NOTE(vak): 2 GPT headers
         (Settings.BytesPerBlock)       // NOTE(vak): MBR
     ;
 
-    size_t ImageSize =
+    usize ImageSize =
         Padding                      +
         Settings.SystemPartitionSize
     ;
 
-    size_t ImageBlockCount = ComputeBlockCount(ImageSize);
+    usize ImageBlockCount = ComputeBlockCount(ImageSize);
 
-    size_t SystemPartitionLBA = ComputeAlignedBlockCount(Settings.Alignment);
-    size_t SystemPartitionBlocks = ComputeAlignedBlockCount(Settings.SystemPartitionSize);
+    usize SystemPartitionLBA = ComputeAlignedBlockCount(Settings.Alignment);
+    usize SystemPartitionBlocks = ComputeAlignedBlockCount(Settings.SystemPartitionSize);
 
     printf("Image name: %s\n", Settings.ImageName);
-    printf("Image size: %zu MB (%zu blocks)\n", ImageSize / MB(1), ImageBlockCount);
+    printf("Image size: %llu MB (%llu blocks)\n", ImageSize / MB(1), ImageBlockCount);
 
     // NOTE(vak): Protective MBR
     {
@@ -479,8 +312,8 @@ int main(int ArgCount, char* Args[])
 
     // NOTE(vak): Partition table
     {
-        size_t PrimaryLBA = 0x01;
-        size_t AlternativeLBA = ImageBlockCount - 1;
+        usize PrimaryLBA = 0x01;
+        usize AlternativeLBA = ImageBlockCount - 1;
 
         gpt_header PrimaryHeader =
         {
@@ -570,8 +403,8 @@ int main(int ArgCount, char* Args[])
             .BootSectorSignature = 0xAA55,
         };
 
-        uint32_t AvailableBlocks = VBR.TotalBlocks32 - VBR.ReservedBlockCount;
-        uint32_t Temp = ((256 * VBR.BlocksPerCluster) + VBR.NumberOfFATs) / 2;
+        u32 AvailableBlocks = VBR.TotalBlocks32 - VBR.ReservedBlockCount;
+        u32 Temp = ((256 * VBR.BlocksPerCluster) + VBR.NumberOfFATs) / 2;
 
         VBR.BlocksPerFAT32 = (AvailableBlocks + Temp - 1) / Temp;
 
@@ -584,8 +417,8 @@ int main(int ArgCount, char* Args[])
             .TrailingSignature  = 0xAA550000,
         };
 
-        size_t TableLBA = SystemPartitionLBA + VBR.ReservedBlockCount;
-        size_t DataLBA  = TableLBA + (VBR.NumberOfFATs * VBR.BlocksPerFAT32);
+        usize TableLBA = SystemPartitionLBA + VBR.ReservedBlockCount;
+        usize DataLBA  = TableLBA + (VBR.NumberOfFATs * VBR.BlocksPerFAT32);
 
         // NOTE(vak): Write VBR and FSInfo
 
@@ -603,14 +436,14 @@ int main(int ArgCount, char* Args[])
 
         // NOTE(vak): Write FATs
 
-        for (uint32_t TableIndex = 0; TableIndex < VBR.NumberOfFATs; TableIndex++)
+        for (u32 TableIndex = 0; TableIndex < VBR.NumberOfFATs; TableIndex++)
         {
             SeekFile(
                 OutFile,
                 ComputeBlocksSize(TableLBA + (TableIndex * VBR.BlocksPerFAT32))
             );
 
-            uint32_t Cluster = 0;
+            u32 Cluster = 0;
 
             // NOTE(vak): Cluster 0: FAT identifier, lower 8 bits are the media type
             Cluster = 0xFFFFFF00 | VBR.MediaDescriptor;
@@ -657,14 +490,14 @@ int main(int ArgCount, char* Args[])
 
             SeekFile(OutFile, ComputeBlocksSize(DataLBA + 1));
 
-            memcpy(DirectoryEntry.Name, ".          ", 11);
+            CopyMemory(DirectoryEntry.Name, ".          ", 11);
             WriteBytes(OutFile, &DirectoryEntry, sizeof(DirectoryEntry));
 
-            memcpy(DirectoryEntry.Name, "..         ", 11);
+            CopyMemory(DirectoryEntry.Name, "..         ", 11);
             DirectoryEntry.FirstClusterLow = 0;
             WriteBytes(OutFile, &DirectoryEntry, sizeof(DirectoryEntry));
 
-            memcpy(DirectoryEntry.Name, "BOOT       ", 11);
+            CopyMemory(DirectoryEntry.Name, "BOOT       ", 11);
             DirectoryEntry.FirstClusterLow = 4;
             WriteBlocks(OutFile, &DirectoryEntry, sizeof(DirectoryEntry));
 
@@ -672,10 +505,10 @@ int main(int ArgCount, char* Args[])
 
             SeekFile(OutFile, ComputeBlocksSize(DataLBA + 2));
 
-            memcpy(DirectoryEntry.Name, ".          ", 11);
+            CopyMemory(DirectoryEntry.Name, ".          ", 11);
             WriteBytes(OutFile, &DirectoryEntry, sizeof(DirectoryEntry));
 
-            memcpy(DirectoryEntry.Name, "..         ", 11);
+            CopyMemory(DirectoryEntry.Name, "..         ", 11);
             DirectoryEntry.FirstClusterLow = 3;
             WriteBlocks(OutFile, &DirectoryEntry, sizeof(DirectoryEntry));
         }
@@ -683,30 +516,30 @@ int main(int ArgCount, char* Args[])
         // NOTE(vak): Add BOOTX64.EFI to '/EFI/BOOT/'
 
         {
-            size_t FileSize = GetFileSize(BOOTX64);
+            usize FileSize = GetFileSize(BOOTX64);
             void* FileData = calloc(1, FileSize);
 
             ReadBytes(BOOTX64, FileData, FileSize);
 
-            size_t FileBlocks = ComputeBlockCount(FileSize);
+            usize FileBlocks = ComputeBlockCount(FileSize);
 
-            uint32_t NextFreeCluster = FilesystemInfo.NextFree;
-            uint32_t StartingCluster = NextFreeCluster;
+            u32 NextFreeCluster = FilesystemInfo.NextFree;
+            u32 StartingCluster = NextFreeCluster;
 
-            for (uint8_t TableIndex = 0; TableIndex < VBR.NumberOfFATs; TableIndex++)
+            for (u8 TableIndex = 0; TableIndex < VBR.NumberOfFATs; TableIndex++)
             {
-                uint32_t Cluster = FilesystemInfo.NextFree;
+                u32 Cluster = FilesystemInfo.NextFree;
                 NextFreeCluster = Cluster;
 
                 SeekFile(
                     OutFile,
                     ComputeBlocksSize(TableLBA + (TableIndex * VBR.BlocksPerFAT32)) +
-                    NextFreeCluster * sizeof(uint32_t)
+                    NextFreeCluster * sizeof(u32)
                 );
 
                 // NOTE(vak): Write file clusters
 
-                for (uint64_t Block = 0; Block < FileBlocks; Block++)
+                for (u64 Block = 0; Block < FileBlocks; Block++)
                 {
                     Cluster++;
                     NextFreeCluster++;
@@ -744,7 +577,7 @@ int main(int ArgCount, char* Args[])
 
             SeekFileCurrent(OutFile, -sizeof(fat32_directory_entry));
 
-            memcpy(DirectoryEntry.Name, "BOOTX64 EFI", 11);
+            CopyMemory(DirectoryEntry.Name, "BOOTX64 EFI", 11);
 
             SetFAT32Time(&DirectoryEntry);
 
@@ -758,6 +591,8 @@ int main(int ArgCount, char* Args[])
 
             SeekFile(OutFile, ComputeBlocksSize(DataLBA + StartingCluster - 2));
             WriteBlocks(OutFile, FileData, FileSize);
+
+            printf("Added 'BOOTX64.EFI' to '/EFI/BOOT' (%llu bytes)\n", FileSize);
         }
     }
 

@@ -2,7 +2,7 @@
 #!/bin/bash
 
 Compiler="clang"
-Flags="-std=c11 -Wall -Wextra -Wpedantic -Werror"
+Flags="-std=c11 -Wall -Wextra -Wpedantic -Werror -Wno-unused-function"
 Source="../code/gptimg.c"
 Target="gptimg"
 
