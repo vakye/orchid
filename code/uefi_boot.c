@@ -1,9 +1,11 @@
 
 #include "shared.h"
+#include "memory.h"
 #include "arch.h"
 #include "kernel.h"
 
 #include "shared.c"
+#include "memory.c"
 #include "arch.c"
 #include "kernel.c"
 
@@ -81,14 +83,14 @@ local void UEFIFree(EFI_SYSTEM_TABLE* SystemTable, void* Buffer)
     }
 }
 
-local void UEFIObtainMemoryMap(
+local memory_map UEFIObtainMemoryMap(
     EFI_SYSTEM_TABLE*       SystemTable,
-    UINTN*                  DescriptorCount,
-    VOID**                  Descriptors,
     UINTN*                  MemoryMapKey
 )
 {
     EFI_BOOT_SERVICES* BootServices = SystemTable->BootServices;
+
+    memory_map Result = {0};
 
     usize MemoryMapSize     = 0;
     void* MemoryDescriptors = 0;
@@ -111,12 +113,17 @@ local void UEFIObtainMemoryMap(
         }
         else if (Status == EFI_BUFFER_TOO_SMALL)
         {
-            usize NewSize = MemoryMapSize + 4*DescriptorSize;
+            usize NewSize  = MemoryMapSize + 4*DescriptorSize;
+            usize NewCount = NewSize / DescriptorSize;
 
             if (MemoryDescriptors)
                 UEFIFree(SystemTable, MemoryDescriptors);
 
+            if (Result.Regions)
+                UEFIFree(SystemTable, Result.Regions);
+
             MemoryDescriptors = UEFIAllocate(SystemTable, NewSize);
+            Result.Regions    = UEFIAllocate(SystemTable, NewCount * sizeof(memory_region));
         }
         else if (Status == EFI_INVALID_PARAMETER)
         {
@@ -128,8 +135,37 @@ local void UEFIObtainMemoryMap(
         }
     }
 
-    *DescriptorCount = MemoryMapSize / DescriptorSize;
-    *Descriptors     = MemoryDescriptors;
+    Result.RegionCount = MemoryMapSize / DescriptorSize;
+    ZeroArray(Result.Regions, Result.RegionCount);
+
+    u8* Base = (u8*)MemoryDescriptors;
+
+    for (usize Index = 0; Index < Result.RegionCount; Index++)
+    {
+        EFI_MEMORY_DESCRIPTOR* Descriptor = (EFI_MEMORY_DESCRIPTOR*)Base;
+        memory_region* Region = Result.Regions + Index;
+
+        Region->PageCount   = Descriptor->NumberOfPages;
+        Region->BaseAddress = Descriptor->PhysicalStart;
+
+        switch (Descriptor->Type)
+        {
+            default:            Region->Kind = MemoryRegionKind_Unknown;  break;
+            case EfiLoaderCode: Region->Kind = MemoryRegionKind_BootCode; break;
+            case EfiLoaderData: Region->Kind = MemoryRegionKind_BootData; break;
+
+            case EfiBootServicesCode:
+            case EfiBootServicesData:
+            case EfiConventionalMemory:
+            {
+                Region->Kind = MemoryRegionKind_Usable;
+            } break;
+        }
+
+        Base += DescriptorSize;
+    }
+
+    return (Result);
 }
 
 local void UEFIExitBootServices(
@@ -160,17 +196,12 @@ EFI_STATUS EFIAPI UEFIBoot(
     IN EFI_SYSTEM_TABLE* SystemTable
 )
 {
-    (void) ImageHandle;
-
     UEFISetupConsole(SystemTable);
 
-    UINTN DescriptorCount = 0;
-    VOID* Descriptors     = 0;
-    UINTN MemoryMapKey    = 0;
+    UINTN MemoryMapKey = 0;
 
-    UEFIObtainMemoryMap(
+    memory_map MemoryMap = UEFIObtainMemoryMap(
         SystemTable,
-        &DescriptorCount, &Descriptors,
         &MemoryMapKey
     );
 
@@ -180,7 +211,7 @@ EFI_STATUS EFIAPI UEFIBoot(
         MemoryMapKey
     );
 
-    KernelEntry();
+    KernelEntry(&MemoryMap);
 
     return (EFI_SUCCESS);
 }

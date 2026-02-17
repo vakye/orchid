@@ -1,4 +1,4 @@
 
 #pragma once
 
-local void KernelEntry(void);
+local void KernelEntry(memory_map* MemoryMap);
