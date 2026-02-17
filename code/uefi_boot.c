@@ -1,5 +1,12 @@
 
 #include "shared.h"
+#include "arch.h"
+#include "kernel.h"
+
+#include "shared.c"
+#include "arch.c"
+#include "kernel.c"
+
 #include "uefi_boot.h"
 
 local void UEFISetupConsole(EFI_SYSTEM_TABLE* SystemTable)
@@ -173,7 +180,7 @@ EFI_STATUS EFIAPI UEFIBoot(
         MemoryMapKey
     );
 
-    for (;;);
+    KernelEntry();
 
     return (EFI_SUCCESS);
 }

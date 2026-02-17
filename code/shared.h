@@ -4,13 +4,13 @@
 // NOTE(vak): Architecture
 
 #if defined(__x86_64__) || defined(_M_X64)
-# define ArchitectureX64 (1)
+# define x86_64 (1)
 #else
 # error "Unknown architecture"
 #endif
 
-#if !defined(ArchitectureX64)
-# define ArchitectureX64 (0)
+#if !defined(x86_64)
+# define x86_64 (0)
 #endif
 
 // NOTE(vak): Keywords
