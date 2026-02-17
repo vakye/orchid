@@ -1,0 +1,8 @@
+#!/bin/bash
+
+Emulator="qemu-system-x86_64"
+Flags="-machine q35 -drive format=raw,index=0,file=orchid.img -bios ../bios/OVMF.fd"
+
+cd build
+$Emulator $Flags
+cd ..
