@@ -176,7 +176,6 @@ typedef struct
 {
     size_t BytesPerBlock;       // NOTE(vak): Per UEFI specifications, restricted to be 512/1024/2048/4096
     size_t SystemPartitionSize; // NOTE(vak): Contains boot code and data. Measured in bytes
-    size_t DataPartitionSize;   // NOTE(vak): Contains filesystem data. Measured in bytes
     size_t Alignment;           // NOTE(vak): Partition alignment. Must be MB(1) per UEFI spec
     char*  ImageName;           // NOTE(vak): Name of the output file.
 } settings;
@@ -185,16 +184,12 @@ settings Settings =
 {
     .BytesPerBlock       = 512,
     .SystemPartitionSize = MB(33), // NOTE(vak): FAT32 so must be larger than 32MB
-    .DataPartitionSize   = MB(1),
     .Alignment           = MB(1),
     .ImageName           = "orchid.img",
 };
 
 #define EFI_SYSTEM_PARTITION_GUID \
     (guid128){.Parts64 = {0xC12A7328F81F11D2, 0xBA4B00A0C93EC93B}}
-
-#define MICROSOFT_BASIC_DATA_PARTITION_GUID \
-    (guid128){.Parts64 = {0xEBD0A0A2B9E54433, 0x87C068B6B72699C7}}
 
 static guid128 NewGUID(void)
 {
@@ -425,15 +420,9 @@ int main(int ArgCount, char* Args[])
         printf("error: EFI system partition size is not larger than 32MB (%zu MB)\n", Settings.SystemPartitionSize / MB(1));
     }
 
-    if (Settings.DataPartitionSize <= MB(32))
-    {
-        printf("error: Data partition size is not larger than 32MB (%zu MB)\n", Settings.SystemPartitionSize / MB(1));
-    }
-
     printf("Settings:\n");
     printf("    + Bytes per block:       %zu\n",    Settings.BytesPerBlock);
     printf("    + System partition size: %zu MB\n", Settings.SystemPartitionSize / MB(1));
-    printf("    + Data partition size:   %zu MB\n", Settings.DataPartitionSize / MB(1));
 
     // NOTE(vak): Add extra padding for:
     //     2 aligned partitions
@@ -453,17 +442,13 @@ int main(int ArgCount, char* Args[])
 
     size_t ImageSize =
         Padding                      +
-        Settings.SystemPartitionSize +
-        Settings.DataPartitionSize
+        Settings.SystemPartitionSize
     ;
 
     size_t ImageBlockCount = ComputeBlockCount(ImageSize);
 
     size_t SystemPartitionLBA = ComputeAlignedBlockCount(Settings.Alignment);
     size_t SystemPartitionBlocks = ComputeAlignedBlockCount(Settings.SystemPartitionSize);
-
-    size_t DataPartitionBlocks = ComputeAlignedBlockCount(Settings.DataPartitionSize);
-    size_t DataPartitionLBA = SystemPartitionLBA + SystemPartitionBlocks;
 
     printf("Image name: %s\n", Settings.ImageName);
     printf("Image size: %zu MB (%zu blocks)\n", ImageSize / MB(1), ImageBlockCount);
@@ -541,16 +526,6 @@ int main(int ArgCount, char* Args[])
                 .EndingLBA           = SystemPartitionLBA + SystemPartitionBlocks - 1,
                 .Attributes          = 0x1,
                 .PartitionName       = u"EFI SYSTEM",
-            },
-
-            // NOTE(vak): Data partition
-            {
-                .PartitionTypeGUID   = MICROSOFT_BASIC_DATA_PARTITION_GUID,
-                .UniquePartitionGUID = NewGUID(),
-                .StartingLBA         = DataPartitionLBA,
-                .EndingLBA           = DataPartitionLBA + DataPartitionBlocks - 1,
-                .Attributes          = 0x0,
-                .PartitionName       = u"BASIC DATA",
             },
         };
 
