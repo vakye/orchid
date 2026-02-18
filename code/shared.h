@@ -1,6 +1,10 @@
 
 #pragma once
 
+// NOTE(vak): Variadic arguements
+
+#include <stdarg.h>
+
 // NOTE(vak): Architecture
 
 #if defined(__x86_64__) || defined(_M_X64)
@@ -17,6 +21,8 @@
 
 #define local static
 #define persist static
+
+#define fallthrough
 
 #define packed __attribute__((packed))
 #define nonstring __attribute__((nonstring))
@@ -87,3 +93,17 @@ local void CopyMemory(void* DestInit, void* SourceInit, usize Size);
 
 #define ZeroType(Pointer)         ZeroMemory(Pointer, sizeof(*(Pointer)))
 #define ZeroArray(Pointer, Count) ZeroMemory(Pointer, sizeof(*(Pointer)) * (Count))
+
+// NOTE(vak): String
+
+typedef struct
+{
+    char* Data;
+    usize Size;
+} string;
+
+#define StrData(Data, Size)    (string){Data, Size}
+#define Str(Literal)           (string){Literal, sizeof(Literal) - 1}
+
+#define ImmStrData(Data, Size) {Data, Size}
+#define ImmStr(Literal)        {Literal, sizeof(Literal) - 1}

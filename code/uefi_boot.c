@@ -1,10 +1,14 @@
 
 #include "shared.h"
+#include "printf.h"
+#include "serial.h"
 #include "memory.h"
 #include "arch.h"
 #include "kernel.h"
 
 #include "shared.c"
+#include "printf.c"
+#include "serial.c"
 #include "memory.c"
 #include "arch.c"
 #include "kernel.c"
