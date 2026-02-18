@@ -197,9 +197,9 @@ local usize SPrintfv(void* Buffer, usize BufferSize, string Format, va_list ArgL
         Match("X64",   UpperHex,    u64   )
         Match("Xsize", UpperHex,    usize )
 
-        Match("c",     Character,   char  )
-        Match("str",   String,      string)
         Match("cstr",  CString,     char* )
+        Match("str",   String,      string)
+        Match("char",  Character,   char  )
 
         #undef Match
 

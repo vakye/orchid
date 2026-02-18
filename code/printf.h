@@ -26,7 +26,7 @@
 //     %X64:   64-bit unsigned integer (uppercase hex)
 //     %Xsize: largest signed integer (uppercase hex)
 //
-//     %c:     an ASCII character
+//     %char:  an ASCII character
 //     %str:   string represented as a `string` struct
 //     %cstr:  pointer to a null-terminated string
 

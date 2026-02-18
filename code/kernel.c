@@ -61,7 +61,7 @@ local void KernelEntry(memory_map* MemoryMap)
 
     SerialPrintf(Str("\n"));
 
-    SerialPrintf(Str("c:    %c\n"),    'A');
+    SerialPrintf(Str("char: %char\n"),    'A');
     SerialPrintf(Str("str:  %str\n"),  Str("Hello, world!"));
     SerialPrintf(Str("cstr: %cstr\n"), "Hello, world!");
 
