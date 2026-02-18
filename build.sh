@@ -5,6 +5,7 @@ Compiler="clang"
 
 Flags="\
     -std=c11 \
+    -O0 \
     -Wall -Wextra -Wpedantic -Werror \
     -Wno-unused-parameter -Wno-unused-function -Wno-unused-variable -Wno-varargs \
     --target=x86_64-unknown-windows \

@@ -3,6 +3,14 @@ typedef struct
 {
     char* Base;
     usize Size;
+
+    // NOTE(vak): Only for output
+
+    usize Width;
+    usize Precision;
+    b8 ForceSign;
+    b8 LeftPad;
+    b8 ZeroPad;
 } printf_stream;
 
 typedef enum
@@ -92,23 +100,45 @@ local b32 PrintfMatchAndConsume(printf_stream* Stream, string Compare)
     return (Result);
 }
 
+local void PrintfPad(printf_stream* Out, usize Padding)
+{
+    for (usize Index = 0; Index < Padding; Index++)
+    {
+        PrintfPush(Out, Out->ZeroPad ? '0' : ' ');
+    }
+}
+
 local void PrintfPushBuffer(printf_stream* Out, void* Buffer, usize Size)
 {
     u8* Bytes = (u8*)Buffer;
-    usize Count = Minimum(Out->Size, Size);
+
+    usize Count = Minimum(Size, Out->Precision);
+    usize Padding = Out->Width - Minimum(Count, Out->Width);
+
+    if (Out->LeftPad)
+        PrintfPad(Out, Padding);
 
     for (usize Index = 0; Index < Count; Index++)
     {
-        Out->Base[Index] = Bytes[Index];
+        PrintfPush(Out, Bytes[Index]);
     }
 
-    Out->Base += Count;
-    Out->Size -= Count;
+    if (!Out->LeftPad)
+        PrintfPad(Out, Padding);
 }
 
-local void PrintfPushNumber(printf_stream* Out, usize Value, usize Base, b32 Uppercase)
+local void PrintfPushNumber(
+    printf_stream* Out,
+    usize Value,
+    usize Base,
+    b32 Uppercase,
+    b32 Negative
+)
 {
-    persist char Buffer[64] = {0};
+    if (Base < 2)  return;
+    if (Base > 16) return;
+
+    persist char Buffer[65] = {0};
     persist char DigitMapLower[] = "0123456789abcdef";
     persist char DigitMapUpper[] = "0123456789ABCDEF";
 
@@ -128,13 +158,59 @@ local void PrintfPushNumber(printf_stream* Out, usize Value, usize Base, b32 Upp
         Buffer[DigitIndex] = DigitMap[Digit];
     } while (Value);
 
+    if (Negative)
+    {
+        DigitCount++;
+        DigitIndex--;
+
+        Buffer[DigitIndex] = '-';
+    }
+    else if (Out->ForceSign)
+    {
+        DigitCount++;
+        DigitIndex--;
+
+        Buffer[DigitIndex] = '+';
+    }
+
     PrintfPushBuffer(Out, Buffer + DigitIndex, DigitCount);
+}
+
+local usize PrintfParseNumber(printf_stream* In)
+{
+    usize Result = 0;
+
+    while (In->Size)
+    {
+        char Character = PrintfPeek(In);
+
+        if ((Character < '0') || (Character > '9'))
+            break;
+
+        Result *= 10;
+        Result += Character - '0';
+
+        PrintfConsume(In);
+    }
+
+    return (Result);
 }
 
 local usize SPrintfv(void* Buffer, usize BufferSize, string Format, va_list ArgList)
 {
-    printf_stream In  = {Format.Data, Format.Size};
-    printf_stream Out = {Buffer, BufferSize};
+    printf_stream In  = {0};
+    printf_stream Out = {0};
+
+    Out.Base      = Buffer;
+    Out.Size      = BufferSize;
+    Out.ForceSign = false;
+    Out.ZeroPad   = false;
+    Out.LeftPad   = false;
+    Out.Width     = 0;
+    Out.Precision = USizeMax;
+
+    In.Base = Format.Data;
+    In.Size = Format.Size;
 
     while (In.Size && Out.Size)
     {
@@ -159,7 +235,65 @@ local usize SPrintfv(void* Buffer, usize BufferSize, string Format, va_list ArgL
         if ((In.Size && Out.Size) == 0)
             break;
 
-        // NOTE(vak): Parse format
+        // NOTE(vak): Reset configuration
+
+        Out.ForceSign = false;
+        Out.ZeroPad   = false;
+        Out.LeftPad   = false;
+        Out.Width     = 0;
+        Out.Precision = USizeMax;
+
+        // NOTE(vak): Parse flags
+
+        b32 KeepParsingFlags = true;
+
+        while (KeepParsingFlags)
+        {
+            char Character = PrintfPeek(&In);
+
+            switch (Character)
+            {
+                default: KeepParsingFlags = false; break;
+
+                case '+': Out.ForceSign = true; break;
+                case '0': Out.ZeroPad   = true; break;
+                case '-': Out.LeftPad   = true; break;
+            }
+
+            if (KeepParsingFlags)
+                PrintfConsume(&In);
+        }
+
+        // NOTE(vak): Parse width
+
+        if (PrintfPeek(&In) == '*')
+        {
+            PrintfConsume(&In);
+            Out.Width = va_arg(ArgList, usize);
+        }
+        else
+        {
+            Out.Width = PrintfParseNumber(&In);
+        }
+
+        // NOTE(vak): Parse precision
+
+        if (PrintfPeek(&In) == '.')
+        {
+            PrintfConsume(&In);
+
+            if (PrintfPeek(&In) == '*')
+            {
+                PrintfConsume(&In);
+                Out.Precision = va_arg(ArgList, usize);
+            }
+            else
+            {
+                Out.Precision = PrintfParseNumber(&In);
+            }
+        }
+
+        // NOTE(vak): Parse specifier
 
         printf_format_type  Type  = PrintfFormatType_Unknown;
         printf_format_value Value = {0};
@@ -218,33 +352,35 @@ local usize SPrintfv(void* Buffer, usize BufferSize, string Format, va_list ArgL
 
             case PrintfFormatType_SignedInt:
             {
+                b32 Negative = false;
+
                 if (Value.SignedInt < 0)
                 {
-                    PrintfPush(&Out, '-');
+                    Negative = true;
                     Value.SignedInt = -Value.SignedInt;
                 }
 
-                PrintfPushNumber(&Out, Value.SignedInt, 10, false);
+                PrintfPushNumber(&Out, Value.SignedInt, 10, false, Negative);
             } break;
 
             case PrintfFormatType_UnsignedInt:
             {
-                PrintfPushNumber(&Out, Value.UnsignedInt, 10, false);
+                PrintfPushNumber(&Out, Value.UnsignedInt, 10, false, false);
             } break;
 
             case PrintfFormatType_LowerHex:
             {
-                PrintfPushNumber(&Out, Value.UnsignedInt, 16, false);
+                PrintfPushNumber(&Out, Value.UnsignedInt, 16, false, false);
             } break;
 
             case PrintfFormatType_UpperHex:
             {
-                PrintfPushNumber(&Out, Value.UnsignedInt, 16, true);
+                PrintfPushNumber(&Out, Value.UnsignedInt, 16, true, false);
             } break;
 
             case PrintfFormatType_Character:
             {
-                PrintfPush(&Out, Value.Character);
+                PrintfPushBuffer(&Out, &Value.Character, 1);
             } break;
 
             case PrintfFormatType_String:

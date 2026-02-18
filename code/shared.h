@@ -69,6 +69,8 @@ typedef u64 b64;
 #define true  (1)
 #define false (0)
 
+#define USizeMax ((usize)(1) << (sizeof(usize)*8 - 1))
+
 CTAssert(sizeof(s8 ) == 1);
 CTAssert(sizeof(s16) == 2);
 CTAssert(sizeof(s32) == 4);

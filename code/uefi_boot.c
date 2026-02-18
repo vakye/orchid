@@ -149,17 +149,28 @@ local memory_map UEFIObtainMemoryMap(
         EFI_MEMORY_DESCRIPTOR* Descriptor = (EFI_MEMORY_DESCRIPTOR*)Base;
         memory_region* Region = Result.Regions + Index;
 
+        Region->Kind        = MemoryRegionKind_Unknown;
         Region->PageCount   = Descriptor->NumberOfPages;
         Region->BaseAddress = Descriptor->PhysicalStart;
 
         switch (Descriptor->Type)
         {
-            default:            Region->Kind = MemoryRegionKind_Unknown;  break;
-            case EfiLoaderCode: Region->Kind = MemoryRegionKind_BootCode; break;
-            case EfiLoaderData: Region->Kind = MemoryRegionKind_BootData; break;
+            default: {} break;
 
+            case EfiLoaderCode:
             case EfiBootServicesCode:
+            {
+                Region->Kind = MemoryRegionKind_BootCode;
+            } break;
+
+            case EfiLoaderData:
             case EfiBootServicesData:
+            {
+                Region->Kind = MemoryRegionKind_BootData;
+            } break;
+
+            case EfiRuntimeServicesCode:
+            case EfiRuntimeServicesData:
             case EfiConventionalMemory:
             {
                 Region->Kind = MemoryRegionKind_Usable;

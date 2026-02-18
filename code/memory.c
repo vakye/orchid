@@ -21,7 +21,5 @@ local void* ReservePage(memory_map* MemoryMap, memory_region_kind Kind)
         }
     }
 
-    *(u32*)0x10000 = 0xDEADBEEF;
-
     return (Result);
 }
