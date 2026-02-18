@@ -19,5 +19,13 @@ local void KernelEntry(memory_map* MemoryMap)
 
     ArchUsePageMap(PageMap);
 
+    char Message[] =
+        "\n\n"
+        "Hello, world!\n"
+        "\n\n"
+    ;
+
+    ArchWriteSerial(Message, sizeof(Message) - 1);
+
     for (;;);
 }

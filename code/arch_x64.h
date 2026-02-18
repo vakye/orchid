@@ -1,4 +1,6 @@
 
+#define x64_COM1 (0x03F8)
+
 typedef struct packed
 {
     u16 Limit0;

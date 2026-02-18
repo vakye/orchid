@@ -5,6 +5,8 @@ typedef struct arch_page_map arch_page_map;
 
 local void ArchSetup(void);
 
+local void ArchWriteSerial(void* Buffer, usize Size);
+
 local usize ArchGetPageSize(void);
 
 local arch_page_map* ArchNewPageMap(memory_map* MemoryMap);
