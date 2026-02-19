@@ -21,8 +21,10 @@ local void KernelEntry(memory_map* MemoryMap)
 
     ArchUsePageMap(PageMap);
 
-    SerialInfof (Str("Hello, world!\n"));
-    SerialDebugf(Str("Mapped first 4GB of memory.\n"));
+    SerialInfof (Str("Hello, world!"));
+    SerialDebugf(Str("Mapped first 4GB of memory."));
+
+    *(u32*)TB(2) = 0; // NOTE(vak): A lot of page faults...
 
     for (;;);
 }

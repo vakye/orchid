@@ -48,13 +48,15 @@
 
 #define fallthrough
 
+#define naked __attribute__((naked))
+
 #if CompilerMSVC
 #  define packed(Declaration) \
         __pragma(pack(push, 1)) \
         Declaration; \
         __pragma(pack(pop))
 #else
-#  define packed(Declaration) Declaration; __attribute__((__packed__))
+#  define packed(Declaration) Declaration; __attribute__((__packed__));
 #endif
 
 #if CompilerMSVC

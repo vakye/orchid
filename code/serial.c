@@ -35,6 +35,8 @@ local usize SerialDebugf(string Format, ...)
 
     va_end(ArgList);
 
+    ArchWriteSerial("\n", 1);
+
     return (BytesWritten);
 }
 
@@ -50,6 +52,25 @@ local usize SerialInfof(string Format, ...)
 
     va_end(ArgList);
 
+    ArchWriteSerial("\n", 1);
+
+    return (BytesWritten);
+}
+
+local usize SerialWarnf (string Format, ...)
+{
+    char Prefix[] = "[Warn ]: ";
+    ArchWriteSerial(Prefix, sizeof(Prefix) - 1);
+
+    va_list ArgList = {0};
+    va_start(ArgList, Format);
+
+    usize BytesWritten = SerialPrintfv(Format, ArgList);
+
+    va_end(ArgList);
+
+    ArchWriteSerial("\n", 1);
+
     return (BytesWritten);
 }
 
@@ -64,6 +85,8 @@ local usize SerialErrorf(string Format, ...)
     usize BytesWritten = SerialPrintfv(Format, ArgList);
 
     va_end(ArgList);
+
+    ArchWriteSerial("\n", 1);
 
     return (BytesWritten);
 }

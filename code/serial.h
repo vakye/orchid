@@ -6,4 +6,5 @@ local usize SerialPrintf(string Format, ...);
 
 local usize SerialDebugf(string Format, ...);
 local usize SerialInfof (string Format, ...);
+local usize SerialWarnf (string Format, ...);
 local usize SerialErrorf(string Format, ...);
