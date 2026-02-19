@@ -4,6 +4,9 @@
 // placed in the "/EFI/BOOT" directory. The resulting image is then
 // outputted to "orchid.img".
 
+// NOTE(vak): For clang-msvc
+#define _CRT_SECURE_NO_WARNINGS 1
+
 #include "shared.h"
 #include "shared.c"
 

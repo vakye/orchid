@@ -23,7 +23,6 @@ local void KernelEntry(memory_map* MemoryMap)
 
     SerialInfof (Str("Hello, world!\n"));
     SerialDebugf(Str("Mapped first 4GB of memory.\n"));
-    SerialDebugf(Str("%*.*str\n"), 5, 10, Str("Hell"));
 
     for (;;);
 }

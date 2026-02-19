@@ -1,7 +1,7 @@
 
 #pragma once
 
-typedef struct packed
+packed(typedef struct
 {
     u8  BootIndicator;
     u8  StartHead;
@@ -13,18 +13,18 @@ typedef struct packed
     u8  EndTrack;
     u32 StartingLBA;
     u32 SizeInLBA;
-} mbr_partition_record;
+} mbr_partition_record)
 
 CTAssert(sizeof(mbr_partition_record) == 16);
 
-typedef struct packed
+packed(typedef struct
 {
     u8                   BootCode[440];
     u32                  UniqueMBRSignature;
     u16                  Unknown;
     mbr_partition_record Partitions[4];
     u16                  Signature;
-} master_boot_record;
+} master_boot_record)
 
 CTAssert(sizeof(master_boot_record) == 512);
 
@@ -36,7 +36,7 @@ typedef union
     u8  Parts8[16];
 } guid128;
 
-typedef struct packed
+packed(typedef struct
 {
     u64     Signature;
     u32     Revision;
@@ -53,11 +53,11 @@ typedef struct packed
     u32     SizeOfPartitionEntry;
     u32     PartitionArrayCRC32;
     u8      Reserved1[420];
-} gpt_header;
+} gpt_header)
 
 CTAssert(sizeof(gpt_header) == 512);
 
-typedef struct packed
+packed(typedef struct
 {
     guid128 PartitionTypeGUID;
     guid128 UniquePartitionGUID;
@@ -65,11 +65,11 @@ typedef struct packed
     u64     EndingLBA;
     u64     Attributes;
     u16     PartitionName[36];
-} gpt_entry;
+} gpt_entry)
 
 CTAssert(sizeof(gpt_entry) == 128);
 
-typedef struct packed
+packed(typedef struct
 {
     u8  JumpInstruction[3];
     u8  OEMName[8] nonstring;
@@ -101,11 +101,11 @@ typedef struct packed
 
     u8  BootCode[420];
     u16 BootSectorSignature;
-} fat32_vbr;
+} fat32_vbr)
 
 CTAssert(sizeof(fat32_vbr) == 512);
 
-typedef struct packed
+packed(typedef struct
 {
     u32 LeadSignature;
     u8  Reserved0[480];
@@ -114,7 +114,7 @@ typedef struct packed
     u32 NextFree;
     u8  Reserved1[12];
     u32 TrailingSignature;
-} fat32_filesystem_info;
+} fat32_filesystem_info)
 
 CTAssert(sizeof(fat32_filesystem_info) == 512);
 
@@ -126,7 +126,7 @@ CTAssert(sizeof(fat32_filesystem_info) == 512);
 #define ATTR_ARCHIVE   (0x20)
 #define ATTR_LONG_NAME (ATTR_READ_ONLY | ATTR_HIDDEN | ATTR_SYSTEM | ATTR_VOLUME_ID)
 
-typedef struct packed
+packed(typedef struct
 {
     u8  Name[11] nonstring;
     u8  Attributes;
@@ -140,7 +140,7 @@ typedef struct packed
     u16 WriteDate;
     u16 FirstClusterLow;
     u32 FileSize;
-} fat32_directory_entry;
+} fat32_directory_entry)
 
 CTAssert(sizeof(fat32_directory_entry) == 32);
 

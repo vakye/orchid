@@ -1,7 +1,7 @@
 
 #define x64_COM1 (0x03F8)
 
-typedef struct packed
+packed(typedef struct
 {
     u16 Limit0;
     u16 Base0;
@@ -9,15 +9,15 @@ typedef struct packed
     u8  AccessFlags;
     u8  Limit1AndFlags;
     u8  Base;
-} x64_gdt_entry;
+} x64_gdt_entry)
 
 CTAssert(sizeof(x64_gdt_entry) == 8);
 
-typedef struct packed
+packed(typedef struct
 {
     u16 Limit;
     u64 Address;
-} x64_gdt_register;
+} x64_gdt_register)
 
 #define x64_PageFlag_Present        ((u64)(1) << 0)
 #define x64_PageFlag_ReadWrite      ((u64)(1) << 1)
@@ -30,9 +30,9 @@ typedef struct packed
 #define x64_PageFlagsMask   ((u64)(0xFE00000000000FFF))
 #define x64_PageAddressMask ((u64)(0x01FFFFFFFFFFF000))
 
-struct packed arch_page_map
+packed(struct arch_page_map
 {
     u64 Entries[512];
-};
+})
 
 CTAssert(sizeof(arch_page_map) == KB(4));

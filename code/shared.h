@@ -5,16 +5,40 @@
 
 #include <stdarg.h>
 
+// NOTE(vak): Compiler
+
+#if defined(__clang__)
+#  define CompilerClang (1)
+#else
+#  define CompilerClang (0)
+#endif
+
+#if defined(__GNUC__)
+#  define CompilerGCC (1)
+#else
+#  define CompilerGCC (0)
+#endif
+
+#if defined(_MSC_VER)
+#  define CompilerMSVC (1)
+#else
+#  define CompilerMSVC (0)
+#endif
+
+#if ((CompilerClang | CompilerGCC | CompilerMSVC) == 0)
+#  error "Unknown compiler"
+#endif
+
 // NOTE(vak): Architecture
 
 #if defined(__x86_64__) || defined(_M_X64)
-# define x86_64 (1)
+#  define x86_64 (1)
 #else
-# error "Unknown architecture"
+#  error "Unknown architecture"
 #endif
 
 #if !defined(x86_64)
-# define x86_64 (0)
+#  define x86_64 (0)
 #endif
 
 // NOTE(vak): Keywords
@@ -24,8 +48,20 @@
 
 #define fallthrough
 
-#define packed __attribute__((packed))
-#define nonstring __attribute__((nonstring))
+#if CompilerMSVC
+#  define packed(Declaration) \
+        __pragma(pack(push, 1)) \
+        Declaration; \
+        __pragma(pack(pop))
+#else
+#  define packed(Declaration) Declaration; __attribute__((__packed__))
+#endif
+
+#if CompilerMSVC
+#  define nonstring
+#else
+#  define nonstring __attribute__((nonstring))
+#endif
 
 // NOTE(vak): Macros
 
