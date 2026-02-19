@@ -22,6 +22,24 @@ typedef UINTN        EFI_STATUS;
 typedef VOID*        EFI_HANDLE;
 typedef VOID*        EFI_EVENT;
 
+typedef struct
+{
+    u32 TimeLow;
+    u16 TimeMid;
+    u16 TimeHighAndVersion;
+    u8  Nodes[8];
+} EFI_GUID;
+
+// NOTE(vak): For ACPI 1.0
+#define ACPI_TABLE_GUID (EFI_GUID) \
+    {0xeb9d2d30,0x2d88,0x11d3,\
+    {0x9a,0x16,0x00,0x90,0x27,0x3f,0xc1,0x4d}}
+
+// NOTE(vak): For ACPI 2.0 and above
+#define EFI_ACPI_TABLE_GUID (EFI_GUID) \
+    {0x8868e871,0xe4f1,0x11d3,\
+    {0xbc,0x22,0x00,0x80,0xc7,0x3c,0x88,0x81}}
+
 #define IN
 #define OUT
 #define OPTIONAL
@@ -317,6 +335,12 @@ typedef struct
 
 typedef struct
 {
+    EFI_GUID    VendorGuid;
+    VOID*       VendorTable;
+} EFI_CONFIGURATION_TABLE;
+
+typedef struct
+{
     EFI_TABLE_HEADER                    Header;
     CHAR16*                             FirmwareVendor;
     UINT32                              FirmwareRevision;
@@ -329,5 +353,5 @@ typedef struct
     VOID*                               RuntimeServices;
     VOID*                               BootServices;
     UINTN                               NumberOfTableEntries;
-    VOID*                               ConfigurationTable;
+    EFI_CONFIGURATION_TABLE*            ConfigurationTable;
 } EFI_SYSTEM_TABLE;

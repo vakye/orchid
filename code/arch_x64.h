@@ -97,6 +97,8 @@ CTAssert(sizeof(arch_page_map) == KB(4));
 
 #define x64_COM1 (0x03F8) // NOTE(vak): Serial port
 
+// NOTE(vak): Interrupts
+
 local naked void x64Interrupt0 (void);
 local naked void x64Interrupt1 (void);
 local naked void x64Interrupt2 (void);

@@ -1,9 +1,17 @@
 
-local void KernelEntry(memory_map* MemoryMap)
+local void KernelEntry(memory_map* MemoryMap, acpi_rsdp* RSDP)
 {
     ArchSetup();
 
-    SerialPrintf(Str("\n\n"));
+    SerialDebugf(Str("ACPI RSDP Address: 0x%p"), RSDP);
+
+    ACPIValidateRSDP(RSDP);
+
+    acpi_description_header* MCFG = ACPIFindTableAddress(RSDP, FourCC('M', 'C', 'F', 'G'));
+    if (!MCFG)
+    {
+        SerialErrorf(Str("Cannot find ACPI MCFG table."));
+    }
 
     arch_page_map* PageMap = ArchNewPageMap(MemoryMap);
 
@@ -21,10 +29,7 @@ local void KernelEntry(memory_map* MemoryMap)
 
     ArchUsePageMap(PageMap);
 
-    SerialInfof (Str("Hello, world!"));
-    SerialDebugf(Str("Mapped first 4GB of memory."));
-
-    *(u32*)TB(2) = 0; // NOTE(vak): A lot of page faults...
+    SerialInfof(Str("Mapped first 4GB of memory."));
 
     for (;;);
 }

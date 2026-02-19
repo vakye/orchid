@@ -21,7 +21,7 @@ local void x64OutByte(u16 Port, u8 Byte)
     );
 }
 
-void x64InterruptDispatch(x64_interrupt_frame* Frame)
+local void x64InterruptDispatch(x64_interrupt_frame* Frame)
 {
     // NOTE(vak): Retrieve interrupt number and error code
 
@@ -68,7 +68,7 @@ void x64InterruptDispatch(x64_interrupt_frame* Frame)
     }
 }
 
-naked void x64InterruptStub(void)
+local naked void x64InterruptStub(void)
 {
     __asm volatile
     (
@@ -91,7 +91,7 @@ naked void x64InterruptStub(void)
         "pushq %%r15\n"
 
         "movq %%rsp, %%rcx\n"
-        "call x64InterruptDispatch\n"
+        "call %P0\n"
 
         // NOTE(vak): Pop registers
 
@@ -150,6 +150,47 @@ local void ArchSetup(void)
         __asm volatile ("cli");
     }
 
+    // NOTE(vak): Setup serial port
+    {
+        x64OutByte(x64_COM1 + 3, 0x00); // NOTE(vak): Set DLAB to 0
+        x64OutByte(x64_COM1 + 1, 0x00); // NOTE(vak): Disable interrupts
+
+        x64OutByte(x64_COM1 + 3, 0x80); // NOTE(vak): Set DLAB to 1
+
+        // NOTE(vak): Set divisor to 0x0003, which corresponds
+        // to a baud rate of 38400 baud.
+        x64OutByte(x64_COM1 + 0, 0x03);
+        x64OutByte(x64_COM1 + 1, 0x00);
+
+        // NOTE(vak): Initialize line control register
+        //     + Set data length to 8 bits
+        //     + Set stop bits to 1
+        //     + Set no parity bits
+        //     + Disable break
+        //     + Set DLAB to 0
+        x64OutByte(x64_COM1 + 3, 0x03);
+
+        // NOTE(vak): Initialize FIFO control register
+        //     + Enable FIFO
+        //     + Enable clearing for receive/transmit buffers,
+        //     + Set byte threshold to 14 byte.
+        x64OutByte(x64_COM1 + 2, 0xC7);
+
+        // NOTE(vak): Initialize modem control register
+        //     + Enable "Data Terminal Ready"
+        //     + Enable "Request To Send"
+        //     + Enable "Out 1"
+        //     + Enable "Out 2"
+        //     + Disable "Loop"
+        x64OutByte(x64_COM1 + 4, 0x0F);
+
+        // NOTE(vak): UEFI can output garbage to the serial port,
+        // so print a couple of newlines to seperate from that.
+
+        SerialPrintf(Str("\n\n"));
+        SerialInfof (Str("Initialized serial port COM1"));
+    }
+
     // NOTE(vak): Setup global descriptor table (GDT)
     {
         persist x64_gdt_entry Entries[] =
@@ -189,41 +230,8 @@ local void ArchSetup(void)
 
             :: "m"(GDTR) : "rax"
         );
-    }
 
-    // NOTE(vak): Setup serial port
-    {
-        x64OutByte(x64_COM1 + 3, 0x00); // NOTE(vak): Set DLAB to 0
-        x64OutByte(x64_COM1 + 1, 0x00); // NOTE(vak): Disable interrupts
-
-        x64OutByte(x64_COM1 + 3, 0x80); // NOTE(vak): Set DLAB to 1
-
-        // NOTE(vak): Set divisor to 0x0003, which corresponds
-        // to a baud rate of 38400 baud.
-        x64OutByte(x64_COM1 + 0, 0x03);
-        x64OutByte(x64_COM1 + 1, 0x00);
-
-        // NOTE(vak): Initialize line control register
-        //     + Set data length to 8 bits
-        //     + Set stop bits to 1
-        //     + Set no parity bits
-        //     + Disable break
-        //     + Set DLAB to 0
-        x64OutByte(x64_COM1 + 3, 0x03);
-
-        // NOTE(vak): Initialize FIFO control register
-        //     + Enable FIFO
-        //     + Enable clearing for receive/transmit buffers,
-        //     + Set byte threshold to 14 byte.
-        x64OutByte(x64_COM1 + 2, 0xC7);
-
-        // NOTE(vak): Initialize modem control register
-        //     + Enable "Data Terminal Ready"
-        //     + Enable "Request To Send"
-        //     + Enable "Out 1"
-        //     + Enable "Out 2"
-        //     + Disable "Loop"
-        x64OutByte(x64_COM1 + 4, 0x0F);
+        SerialInfof(Str("Loaded GDT"));
     }
 
     // NOTE(vak): Setup interrupt descriptor table (IDT)
@@ -280,6 +288,8 @@ local void ArchSetup(void)
             "sti\n"
             :: "m"(IDTR)
         );
+
+        SerialInfof(Str("Loaded IDT"));
     }
 }
 
@@ -400,8 +410,8 @@ local void ArchUsePageMap(arch_page_map* PageMap)
         ( \
             "pushq $0\n" \
             "pushq %0\n" \
-            "jmp x64InterruptStub\n" \
-            :: "i"(Vector) \
+            "jmp %P1\n" \
+            :: "i"(Vector), "i"(x64InterruptStub) \
         ); \
     }
 
@@ -413,8 +423,8 @@ local void ArchUsePageMap(arch_page_map* PageMap)
         __asm volatile \
         ( \
             "pushq %0\n" \
-            "jmp x64InterruptStub\n" \
-            :: "i"(Vector) \
+            "jmp %P1\n" \
+            :: "i"(Vector), "i"(x64InterruptStub) \
         ); \
     }
 

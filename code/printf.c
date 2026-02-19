@@ -331,6 +331,9 @@ local usize SPrintfv(void* Buffer, usize BufferSize, string Format, va_list ArgL
         Match("X64",   UpperHex,    u64   )
         Match("Xsize", UpperHex,    usize )
 
+        Match("p",     LowerHex,    usize )
+        Match("P",     UpperHex,    usize )
+
         Match("cstr",  CString,     char* )
         Match("str",   String,      string)
         Match("char",  Character,   char  )
@@ -405,4 +408,16 @@ local usize SPrintfv(void* Buffer, usize BufferSize, string Format, va_list ArgL
     usize BytesWritten = (BufferSize - Out.Size);
 
     return (BytesWritten);
+}
+
+local usize SPrintf(void* Buffer, usize BufferSize, string Format, ...)
+{
+    va_list ArgList;
+    va_start(ArgList, Format);
+
+    usize Result = SPrintfv(Buffer, BufferSize, Format, ArgList);
+
+    va_end(ArgList);
+
+    return (Result);
 }

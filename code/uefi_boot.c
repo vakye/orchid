@@ -1,5 +1,6 @@
 
 #include "shared.h"
+#include "acpi.h"
 #include "printf.h"
 #include "serial.h"
 #include "memory.h"
@@ -7,6 +8,7 @@
 #include "kernel.h"
 
 #include "shared.c"
+#include "acpi.c"
 #include "printf.c"
 #include "serial.c"
 #include "memory.c"
@@ -183,6 +185,55 @@ local memory_map UEFIObtainMemoryMap(
     return (Result);
 }
 
+local b32 UEFISameGUID(EFI_GUID* A, EFI_GUID* B)
+{
+    u64* PartsA = (u64*)A;
+    u64* PartsB = (u64*)B;
+
+    b32 Result =
+        (PartsA[0] == PartsB[0]) &&
+        (PartsA[1] == PartsB[1]);
+
+    return (Result);
+}
+
+local acpi_rsdp* UEFIFindRSDP(EFI_SYSTEM_TABLE* SystemTable)
+{
+    b32 Found = false;
+
+    EFI_GUID Version1 = ACPI_TABLE_GUID;
+    EFI_GUID Version2 = EFI_ACPI_TABLE_GUID;
+
+    acpi_rsdp* RSDP1 = 0;
+    acpi_rsdp* RSDP2 = 0;
+
+    for (usize Index = 0; Index < SystemTable->NumberOfTableEntries; Index++)
+    {
+        EFI_CONFIGURATION_TABLE* Table = SystemTable->ConfigurationTable + Index;
+
+        if (UEFISameGUID(&Table->VendorGuid, &Version1))
+        {
+            RSDP1 = (acpi_rsdp*)Table->VendorTable;
+            Found = true;
+        }
+
+        if (UEFISameGUID(&Table->VendorGuid, &Version2))
+        {
+            RSDP2 = (acpi_rsdp*)Table->VendorTable;
+            Found = true;
+        }
+    }
+
+    acpi_rsdp* RSDP = (RSDP2) ? (RSDP2) : (RSDP1);
+
+    if (!Found)
+    {
+        UEFIError(SystemTable, L"ACPI is not supported on this system");
+    }
+
+    return (RSDP);
+}
+
 local void UEFIExitBootServices(
     EFI_SYSTEM_TABLE*   SystemTable,
     EFI_HANDLE          ImageHandle,
@@ -220,13 +271,15 @@ EFI_STATUS EFIAPI UEFIBoot(
         &MemoryMapKey
     );
 
+    acpi_rsdp* RSDP = UEFIFindRSDP(SystemTable);
+
     UEFIExitBootServices(
         SystemTable,
         ImageHandle,
         MemoryMapKey
     );
 
-    KernelEntry(&MemoryMap);
+    KernelEntry(&MemoryMap, RSDP);
 
     return (EFI_SUCCESS);
 }

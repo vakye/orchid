@@ -2,6 +2,7 @@
 local void* ReservePage(memory_map* MemoryMap, memory_region_kind Kind)
 {
     void* Result = 0;
+    b32 Found = false;
 
     for (usize Index = 0; Index < MemoryMap->RegionCount; Index++)
     {
@@ -17,8 +18,14 @@ local void* ReservePage(memory_map* MemoryMap, memory_region_kind Kind)
             Region->BaseAddress += ArchGetPageSize();
             Region->PageCount--;
 
+            Found = true;
             break;
         }
+    }
+
+    if (!Found)
+    {
+        SerialErrorf(Str("Unable to reserve a page."));
     }
 
     return (Result);

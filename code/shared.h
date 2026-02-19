@@ -49,6 +49,7 @@
 #define fallthrough
 
 #define naked __attribute__((naked))
+#define mscall __attribute__((ms_abi))
 
 #if CompilerMSVC
 #  define packed(Declaration) \
@@ -56,7 +57,7 @@
         Declaration; \
         __pragma(pack(pop))
 #else
-#  define packed(Declaration) Declaration; __attribute__((__packed__));
+#  define packed(Declaration) Declaration __attribute__((__packed__));
 #endif
 
 #if CompilerMSVC
@@ -80,6 +81,8 @@
 #define TB(Amount) ((ssize)(Amount) << 40)
 
 #define Align(Value, PowerOf2) (((Value) + (PowerOf2) - 1) & ~((PowerOf2) - 1))
+
+#define FourCC(A, B, C, D) ((A) | ((B) << 8) | ((C) << 16) | ((D) << 24))
 
 // NOTE(vak): Types
 

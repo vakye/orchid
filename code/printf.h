@@ -2,6 +2,7 @@
 #pragma once
 
 local usize SPrintfv(void* Buffer, usize BufferSize, string Format, va_list ArgList);
+local usize SPrintf(void* Buffer, usize BufferSize, string Format, ...);
 
 // NOTE(vak): Formatting guide
 //
@@ -46,6 +47,9 @@ local usize SPrintfv(void* Buffer, usize BufferSize, string Format, va_list ArgL
 //     X32:   32-bit unsigned integer (uppercase hex)
 //     X64:   64-bit unsigned integer (uppercase hex)
 //     Xsize: largest signed integer (uppercase hex)
+//
+//     p: pointer value (lowercase hex)
+//     P: pointer value (uppercase hex)
 //
 //     char:  an ASCII character
 //     str:   string represented as a `string` struct
